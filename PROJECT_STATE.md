@@ -2,20 +2,20 @@
 
 - Project: 公共営業 意思決定OS｜需要検証LP
 - Goal: 実サービス本開発前に市場反応を取得できる0円LPを公開する
-- Phase: RELEASING / UAT_PENDING
-- Progress: 96%
+- Phase: RELEASING / UAT_PARTIAL_PASS
+- Progress: 98%
 - Stable Version: none
 - Development Version: v0.1.0
 - Public URL: https://public-sales-decision-os-lp.pages.dev/
 - Deployment URL confirmed by user: https://5b819fb7.public-sales-decision-os-lp.pages.dev/
-- Current Task: 本番再デプロイ後の実環境確認
-- Completed Tasks: 要件レビュー、BASIC_DESIGN、UI_DESIGN、DETAIL_DESIGN、TEST_PLAN、READY_TO_BUILD判定、GitHub配置、Cloudflare Pages公開、D1 Database ID反映、canonical/OGP/robots/sitemap本番URL反映
-- Pending Tasks: D1テーブル実存在確認、フォーム実送信、イベント記録確認、スマホ/PC UAT、最終受入
+- Current Task: UAT-001修正後の表示再確認とイベント記録確認
+- Completed Tasks: 要件レビュー、BASIC_DESIGN、UI_DESIGN、DETAIL_DESIGN、TEST_PLAN、READY_TO_BUILD判定、GitHub配置、Cloudflare Pages公開、D1 Database ID反映、canonical/OGP/robots/sitemap本番URL反映、実環境フォーム送信、D1 lead保存、簡易診断結果表示、UAT-001修正実装・回帰テスト追加
+- Pending Tasks: UAT-001修正後の実表示確認、イベント記録確認、スマホ表示確認、最終受入
 - Open Questions: なし
 - Change Requests: なし
-- Issues: なし（実環境UAT未完了）
+- Issues: UAT-001（結果表示の視認性不足、修正済み・再確認待ち）
 - Blockers: 0
 - Risks: D1 Free日次上限、スパム投稿、プライバシー対応、需要検証結果の母数不足
 - Cost: 初期0円 / 月額0円（Free枠内）
 - Last Updated: 2026-09-02
-- Next Action: Cloudflare自動再デプロイ成功確認 → 本番フォーム送信 → D1保存確認 → UAT
+- Next Action: Cloudflare自動再デプロイ後に結果表示を再確認 → イベント記録確認 → スマホUAT → 最終受入
