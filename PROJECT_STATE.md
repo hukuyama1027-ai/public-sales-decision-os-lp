@@ -1,21 +1,23 @@
 # PROJECT_STATE
 
-- Project: 公共営業 意思決定OS｜需要検証LP
-- Goal: 実サービス本開発前に市場反応を取得できる0円LPを公開する
-- Phase: RELEASING / UAT_PARTIAL_PASS
-- Progress: 98%
-- Stable Version: none
-- Development Version: v0.1.0
+- Project: 公共営業 意思決定OS｜需要検証LP + 無料版公共営業OS
+- Active Change: AIMOS-CR-003 v0.1
+- Goal: M3をLP反応検証から実プロダクト利用Evidence検証へ拡張する
+- Phase: READY_TO_BUILD / CR-003
+- Progress: Design Gate 100% / Implementation 0%
+- Stable Version: LP v0.1.x（公開中）
+- Development Version: 無料版公共営業OS v0.1
 - Public URL: https://public-sales-decision-os-lp.pages.dev/
-- Deployment URL confirmed by user: https://5b819fb7.public-sales-decision-os-lp.pages.dev/
-- Current Task: UAT-001修正後の表示再確認とイベント記録確認
-- Completed Tasks: 要件レビュー、BASIC_DESIGN、UI_DESIGN、DETAIL_DESIGN、TEST_PLAN、READY_TO_BUILD判定、GitHub配置、Cloudflare Pages公開、D1 Database ID反映、canonical/OGP/robots/sitemap本番URL反映、実環境フォーム送信、D1 lead保存、簡易診断結果表示、UAT-001修正実装・回帰テスト追加
-- Pending Tasks: UAT-001修正後の実表示確認、イベント記録確認、スマホ表示確認、最終受入
+- READY_TO_BUILD: PASS（AIMOS-LP-RTB-003 v0.1）
+- Current Task: `cr-003-free-os-v0.1` branchでP0実装
+- Completed Tasks: CR受領、影響分析、公式API/Free枠調査、REQUIREMENTS v0.3、BASIC_DESIGN v0.2、UI_DESIGN v0.2、DB_DESIGN、API_DESIGN、DATA_FLOW、DETAIL_DESIGN v0.2、SECURITY_REVIEW、TEST_PLAN v0.2、AGENTS/HANDOFF、READY_TO_BUILD再判定
+- Pending Tasks: P0実装、自動テスト、P1判定/可能範囲実装、Cloudflare D1 migration、再デプロイ、実官公需API検索、D1 Evidence確認、スマホ/PC UAT、USER_MANUAL/SETUP_GUIDE更新、AI経営OS Evidence-ready返却
 - Open Questions: なし
-- Change Requests: なし
-- Issues: UAT-001（結果表示の視認性不足、修正済み・再確認待ち）
+- Unknown: AIMOS-CR-002本文未発見。current mainを統合baselineとし、発見時DONE前差分レビュー
+- Issues: UAT-001（旧LP診断結果視認性。コード修正済み、非BLOCKING）
 - Blockers: 0
-- Risks: D1 Free日次上限、スパム投稿、プライバシー対応、需要検証結果の母数不足
-- Cost: 初期0円 / 月額0円（Free枠内）
-- Last Updated: 2026-09-02
-- Next Action: Cloudflare自動再デプロイ後に結果表示を再確認 → イベント記録確認 → スマホUAT → 最終受入
+- Risks: 官公需APIの欠損/非網羅性、日付意味の誤解釈、公式API利用制限、D1/Workers Free上限、匿名token消失時の端末状態喪失
+- Decisions: server-side official API proxy + D1 cache / accountなしclient token hash / rule-first matching / P1 AIはWorkers AI Freeのみ / deadline推測禁止
+- Cost: 初期0円 / 月額固定費0円（Free枠内）
+- Last Updated: 2026-09-03
+- Next Action: branch作成 → DB migration/API/data adapter/matcher/UI → local automated test → P0 gate
