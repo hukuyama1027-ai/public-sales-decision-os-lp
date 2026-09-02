@@ -5,4 +5,4 @@ pages_build_output_dir = "./src"
 [[d1_databases]]
 binding = "DB"
 database_name = "public-sales-lp"
-database_id = "REPLACE_AFTER_D1_CREATE"
+database_id = "40497a74-3492-4cab-8366-23f09c440954"
