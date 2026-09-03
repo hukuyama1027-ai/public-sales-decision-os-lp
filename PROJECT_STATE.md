@@ -12,7 +12,8 @@
 - P0 BUILD GATE: PASS
 - SYSTEM UAT: PASS
 - HUMAN VISUAL UAT: PENDING
-- Current Task: ユーザー画面受入確認 → P1/定期同期の次工程判定
+- AI経営OS連携書: `AI_MANAGEMENT_OS_SYNC_CR-003.md` / AIMOS-MGMT-SYNC-003 v0.1 / ISSUED
+- Current Task: ユーザー画面受入確認 → M3実利用Evidence取得 → P1/定期同期の次工程判定
 
 ## Completed Tasks
 - CR-003受領 / PRODUCT DECISION確認
@@ -51,6 +52,7 @@
 - BUG-CR003-002 おすすめ品質修正・CLOSED
 - TEST_RESULT_CR-003 v0.1
 - UAT_RESULT_CR-003 v0.1
+- AI経営OS連携書 AIMOS-MGMT-SYNC-003 v0.1 発行
 
 ## Production Evidence
 - D1 schema: `cr003` / PASS
@@ -85,6 +87,11 @@ AIMOS-CR-002本文未発見。current mainを統合baselineとしている。CR-
 ### Human Acceptance
 - PC/スマホでの画面・操作感UAT
 
+### M3 Evidence
+- 実ユーザー利用Evidenceの収集・集計
+- profile completion / search / detail / WATCH / recommendation / NEXT ACTION利用指標の観測
+- 技術PASSと市場需要PASSを分離したM3判定
+
 ### P1
 - F-011 締切管理（trusted deadlineのみ）
 - F-012 「今日やること」UX強化
@@ -97,7 +104,7 @@ AIMOS-CR-002本文未発見。current mainを統合baselineとしている。CR-
 - Cron等の定期同期（現在はオンデマンド公式API取得 + D1 cache）
 - USER_MANUAL / SETUP_GUIDEをCR-003へ同期
 - Human UAT後の受入判定
-- AI経営OSへP0 Evidence-ready状態を返却
+- AI経営OS側でAIMOS-MGMT-SYNC-003をCURRENT STATE / MILESTONE / EVIDENCE / RISK / DECISION / LEARNING / NEXT ACTION / Owner Hours / KPIへ取り込み
 
 ## Risks
 - 官公需情報ポータルは全案件網羅を保証しない
@@ -106,6 +113,7 @@ AIMOS-CR-002本文未発見。current mainを統合baselineとしている。CR-
 - Cloudflare D1/Workers Free枠上限
 - 匿名token消失時は端末状態を復元できない
 - 公式API仕様変更
+- 実ユーザー利用が集まらず、市場需要Evidenceが不足する可能性
 
 ## Decisions
 - server-side official API proxy + D1 cache
@@ -116,6 +124,7 @@ AIMOS-CR-002本文未発見。current mainを統合baselineとしている。CR-
 - short ASCII検索は主題範囲で関連性確認
 - おすすめはservice_relevant=trueのGO/WATCHのみ
 - P1 AIは無料枠優先、有料化はユーザー承認なしに行わない
+- 技術Gate PASSを市場需要PASSとして扱わない
 
 ## Cost
 - Initial: 0円
@@ -127,4 +136,5 @@ AIMOS-CR-002本文未発見。current mainを統合baselineとしている。CR-
 ## Next Action
 1. ユーザー本人のPC/スマホ画面UAT
 2. UAT PASS後、P0をM3 Evidence取得基盤として受入
-3. BLOCKING 0ならP1 / Cron / manual同期へ進行
+3. 実ユーザー利用Evidenceを収集・集計してM3 KPIを更新
+4. Evidenceに基づきP1 / Cron / manual同期の優先順位を判定
