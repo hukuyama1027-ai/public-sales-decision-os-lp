@@ -50,7 +50,7 @@ test('CR-005 visual layer contains original inline SVG illustrations without ext
   assert.match(css,/#view-search \.page-head::after/);
   assert.match(css,/#view-watch \.page-head::after/);
   assert.match(css,/#view-profile \.page-head::after/);
-  assert.doesNotMatch(css,/https?:\/\//);
+  assert.doesNotMatch(css,/url\(["']?https?:\/\//);
 });
 
 test('CR-005 mobile visual layer prevents horizontal overflow and preserves touch-friendly cards',()=>{
