@@ -5,6 +5,7 @@ import { parseKkjXml, buildKkjUrl, normalizeDate, KKJ_PORTAL_URL } from '../lib/
 import { normalizeOpportunity } from '../lib/opportunity-normalizer.js';
 import { matchOpportunity } from '../lib/matcher.js';
 import { nextActions } from '../lib/next-actions.js';
+import { keywordMatches } from '../lib/db.js';
 import { safeHttpUrl, validDate } from '../lib/validation.js';
 import { __test as profileTest } from '../functions/api/profile.js';
 import { __test as eventTest } from '../functions/api/event.js';
@@ -22,6 +23,11 @@ test('official portal URL is configured',()=>assert.match(KKJ_PORTAL_URL,/kkj\.g
 test('date parser accepts ISO-like',()=>assert.equal(normalizeDate('2026-9-1'),'2026-09-01'));
 test('date validator rejects impossible date',()=>assert.equal(validDate('2026-02-31'),false));
 test('safe URL rejects javascript scheme',()=>assert.equal(safeHttpUrl('javascript:alert(1)'),null));
+
+test('ASCII AI keyword does not match mail substring',()=>assert.equal(keywordMatches({title:'清掃工事',description:'Contact mail: test@example.com'},'AI'),false));
+test('ASCII AI keyword matches Japanese-connected acronym',()=>assert.equal(keywordMatches({title:'生成AI基盤開発',description:''},'AI'),true));
+test('ASCII Web keyword matches Web app text',()=>assert.equal(keywordMatches({title:'Webアプリ開発',description:''},'Web'),true));
+test('Japanese keyword keeps substring matching',()=>assert.equal(keywordMatches({title:'業務システム開発',description:''},'システム開発'),true));
 
 test('opportunity normalizer never invents deadline',async()=>{const x=await normalizeOpportunity(parseKkjXml(one)[0],'2026-09-03T00:00:00Z');assert.equal(x.deadline_at,null);assert.equal(x.deadline_source,null)});
 test('opportunity normalizer produces deterministic id',async()=>{const src=parseKkjXml(one)[0];const a=await normalizeOpportunity(src,'2026-09-03T00:00:00Z');const b=await normalizeOpportunity(src,'2026-09-04T00:00:00Z');assert.equal(a.id,b.id)});
@@ -46,6 +52,7 @@ test('event metadata does not retain arbitrary PII keys',()=>{const x=eventTest.
 test('free app static shell exists',()=>assert.ok(fs.existsSync(new URL('../src/app/index.html',import.meta.url))));
 test('free app contains five main navigation labels',()=>{const h=fs.readFileSync(new URL('../src/app/index.html',import.meta.url),'utf8');for(const x of ['ホーム','案件検索','WATCH','AI相談','マイページ'])assert.match(h,new RegExp(x))});
 test('free app contains official API attribution and coverage disclaimer',()=>{const h=fs.readFileSync(new URL('../src/app/index.html',import.meta.url),'utf8');assert.match(h,/官公需情報ポータル.*API/);assert.match(h,/すべての公共調達案件を網羅するものではありません/)});
+test('free app labels CftIssueDate conservatively',()=>{const js=fs.readFileSync(new URL('../src/app/app.js',import.meta.url),'utf8');assert.match(js,/公告日\/取得日/)});
 test('security headers include CSP',()=>{const h=fs.readFileSync(new URL('../src/_headers',import.meta.url),'utf8');assert.match(h,/Content-Security-Policy/);assert.match(h,/frame-ancestors 'none'/)});
 test('migration is non-destructive',()=>{const sql=fs.readFileSync(new URL('../migration_cr003.sql',import.meta.url),'utf8');assert.doesNotMatch(sql,/\bDROP\b/i);assert.doesNotMatch(sql,/DELETE\s+FROM\s+(events|leads)/i)});
 
