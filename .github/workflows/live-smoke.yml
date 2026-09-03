@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Wait for Cloudflare Pages deployment
-        run: sleep 25
+        run: sleep 30
       - name: Health and D1 schema
         run: |
           set -euo pipefail
@@ -25,16 +25,19 @@ jobs:
           d=json.load(open('/tmp/health.json'))
           assert d.get('ok') is True, d
           assert d.get('db') is True, d
-          assert d.get('schema') == 'cr003', d
-          print('health PASS', d)
+          assert d.get('schema') == 'cr004', d
+          assert d.get('version') == '0.1-cr004', d
+          print('health/schema CR-004 PASS', d)
           PY
-      - name: Free app is live
+      - name: CR-004 free app is live
         run: |
           set -euo pipefail
           curl --fail --show-error --silent --retry 8 --retry-all-errors --retry-delay 5 https://public-sales-decision-os-lp.pages.dev/app/ | tee /tmp/app.html
-          grep -q '公共案件を探す' /tmp/app.html
+          grep -q '今日やること' /tmp/app.html
+          grep -q 'あなたへのおすすめ案件' /tmp/app.html
+          grep -q 'WATCH更新' /tmp/app.html
           grep -q '官公需情報ポータル' /tmp/app.html
-          echo 'app PASS'
+          echo 'CR-004 app shell PASS'
       - name: Real public opportunity search
         run: |
           set -euo pipefail
