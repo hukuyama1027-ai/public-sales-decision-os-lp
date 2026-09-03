@@ -1,30 +1,51 @@
 # PROJECT_STATE
 
 - Project: 公共営業 意思決定OS｜需要検証LP + 無料版公共営業OS
+- Goal: 小規模IT企業向けの公共営業OSを0円構成で公開し、実案件検索・判断・WATCH・次行動の利用Evidenceを取得してM3市場検証へ進める
 - Active Change: AIMOS-CR-005 v0.1
 - Parent Change: AIMOS-CR-004
-- Phase: CR-005 / DEPLOY_RETRY / UAT_RECOVERY
-- Progress: CR-005 Design 100% / Implementation 100% / Automated Test 100% / Production Deploy RETRYING / Human re-UAT PENDING
-- Stable Production: CR-004 P0（Human UAT未受入）
-- CR-005 Merge Commit: `c03d05c44d17792f9547b66a4377421e8f135be8`
+- Phase: CR-005 / HUMAN_RE_UAT_PENDING
+- Progress: Design 100% / Implementation 100% / Automated Test 100% / Production Deploy 100% / Production Technical E2E PASS / Human re-UAT PENDING
+- Stable Version: CR-004 P0（旧Human UAT不受入）
+- Development Version: CR-005 Production Candidate
+- Production Main Head: `a67e29023cd7f5afd06f908b552f94e18008a118`
+- Runtime Implementation Merge: `c03d05c44d17792f9547b66a4377421e8f135be8`
 - Rollback Baseline: `baseline-cr003-production` @ `e70182e343643cd738113df5e0e21a7d3ba67123`
 - Public URL: https://public-sales-decision-os-lp.pages.dev/
 - Free App URL: https://public-sales-decision-os-lp.pages.dev/app/
-- CR-005 READY_TO_BUILD: PASS
-- BLOCKING: 1（Production deployment未完了）
-- Cost: Initial 0円 / Monthly Fixed 0円
+- Current Task: Human Visual re-UAT
+- Completed Tasks: CR-005設計、READY_TO_BUILD、実装、109/109自動試験、main統合、Cloudflare Production再deploy、Production smoke、Production P0 E2E、案件表示/WATCH技術確認
+- Pending Tasks: Human Visual re-UAT、ユーザー受入判定、UAT結果正式化、必要に応じCR-006、受入後M3 Evidence蓄積・評価
+- Open Questions: なし
+- Change Requests: AIMOS-CR-005 v0.1（Human UAT改善対応）
+- Issues: DEPLOY-CR005-001 / Issue #18 = CLOSED / RESOLVED
+- Blockers: 0（技術BLOCKERなし。受入GateとしてHuman re-UAT待ち）
+- Risks: Human re-UATでUI追加改善が必要になる可能性、M3実利用母数不足、実利用KPI未集計期間の誤推測、官公需API/D1 Free枠依存
+- Cost: Initial 0円 / Monthly Fixed 0円（Free枠内）
+- Owner Hours: UNKNOWN / 未計測。推測禁止。
+- Last Updated: 2026-09-04
+- Next Action: ユーザーがCR-005 Productionで「案件表示」「WATCH登録」「UI/イラスト」を再確認 → PASSなら受入成果物更新とM3市場検証へ進む / FAILなら新Change Requestへ
 
 ## Human UAT Evidence
-2026-09-03 user browser / smartphone:
+2026-09-03 user browser / smartphoneでCR-004に対し以下を確認。
 - 検索結果が案件名なし・発注機関情報なしになる
 - WATCH追加が `INVALID_INPUT`
 - UIが簡素。イラスト/アイコンを増やしたい
 
-Human Visual UAT = **FAIL / CHANGE_REQUIRED**。CR-004/CR-005 DONE禁止。
+Human Visual UAT = **FAIL / CHANGE_REQUIRED** とし、CR-005を起票・実装した。
 
-## Root Cause / Fix
-旧UIがflat KKJ opportunityの `source: "kkj"` をnested objectと誤認していた。
-CR-005で型判定adapter、WATCH id guard、browser-facing regression、オリジナルinline SVG/CSS visual layerを実装済み。
+## CR-005 Root Cause / Fix
+旧UIがflat KKJ opportunityの `source: "kkj"` をnested objectと誤認し、item id/title/organizationを失っていた。
+
+CR-005で以下を実装済み。
+- flat/nested opportunity shape adapter
+- valid opportunity id validation
+- WATCH request body guard
+- WATCH accessibility state
+- invalid data時の安全なfallback
+- Home/Search/WATCH/Profile/AIのオリジナルinline SVG illustration
+- card/search/profile/mobile visual refinement
+- 外部画像/CDN/有料asset追加なし
 
 ## Automated Evidence
 - PR #17 merged
@@ -33,28 +54,34 @@ CR-005で型判定adapter、WATCH id guard、browser-facing regression、オリ�
 - CR-004 regression: PASS
 - CR-005 adapter/WATCH/visual regression: PASS
 
-## Deployment Incident
-- Issue #18: `DEPLOY-CR005-001`
-- Failed target commit: `c03d05c44d17792f9547b66a4377421e8f135be8`
-- Cloudflare deployment id: `d02206c0-916d-4949-97b2-c48697437323`
-- Cloudflare check: FAILURE
-- GitHub test: SUCCESS
-- Initial live-smoke/production-e2e ran before CR-005 static deployment completed and therefore are not accepted as CR-005 Production evidence.
-- live-smoke log proved old `公共営業OS CR-004` HTML was still served at 10:08:27Z.
+## Production Evidence
+- Cloudflare Pages retry deployment: SUCCESS
+- Deployment id: `c338448f-ba62-468a-97ba-5745acf0b17c`
+- Production HTMLで `application-name="公共営業OS CR-005"` を確認
+- Production HTMLで `/app/visual-cr005.css` 読込を確認
+- Post-deploy live-smoke rerun job `100610621995`: SUCCESS
+- Post-deploy production-e2e rerun job `100610651453`: SUCCESS
+- 実案件検索: title / id / organization_name取得 PASS
+- WATCH add: PASS
+- WATCH list/persistence: PASS
+- cleanup: PASS
+- Issue #18: CLOSED / RESOLVED
 
-## Retry Decision
-Runtime code / Functions / D1 / wranglerの追加変更は行わず、formal state commitによるmain pushで同一runtime成果物を再deployする。
-
-再deploy SUCCESSの場合:
-- CR-005 marker/visual CSSのProduction配信確認
-- Production E2E再実行
-- Human Visual UAT再試験
-
-再deploy FAILの場合:
-- Cloudflare dashboard build log取得を外部BLOCKERとして具体エラーに基づき修正する。
-
-## Current Task
-**Cloudflare Pages retry → CR-005 Production marker確認 → post-deploy smoke/E2E → Human re-UAT**
+## M3 KPI Definitions
+正式集計値がない期間は推測・0補完しない。
+- unique anonymous users
+- unique sessions
+- profile completions / profile updates
+- search users
+- search count / searches per user
+- search → detail rate
+- detail → WATCH rate
+- recommendation views
+- GO/WATCH/NO-GO distribution
+- NEXT ACTION views
+- application prep starts
+- repeat usage
+- LP CTA / diagnosis / pricing / usage interest / lead count
 
 ## P1 Remaining（CR-005 blockerではない）
 - AI公共営業コンシェルジュ
