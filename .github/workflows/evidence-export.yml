@@ -1,0 +1,51 @@
+name: evidence-export
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 21 * * *'
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch sanitized M3 evidence
+        env:
+          EVIDENCE_URL: https://public-sales-decision-os-lp.pages.dev/api/internal/evidence?days=30
+          OIDC_AUDIENCE: aimos-public-sales-evidence
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.parse, urllib.request
+          oidc_url = os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']
+          sep = '&' if '?' in oidc_url else '?'
+          req = urllib.request.Request(
+              oidc_url + sep + urllib.parse.urlencode({'audience': os.environ['OIDC_AUDIENCE']}),
+              headers={'Authorization': 'bearer ' + os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
+          with urllib.request.urlopen(req, timeout=15) as r:
+              token = json.load(r)['value']
+          req2 = urllib.request.Request(os.environ['EVIDENCE_URL'], headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/json'})
+          with urllib.request.urlopen(req2, timeout=30) as r:
+              data = json.load(r)
+          if data.get('ok') is not True:
+              raise SystemExit('evidence endpoint returned non-ok response')
+          forbidden = {'client_key','session_id','company_name','email','services','keyword'}
+          def walk(v):
+              if isinstance(v, dict):
+                  if forbidden.intersection(v.keys()):
+                      raise SystemExit('forbidden raw field detected')
+                  for x in v.values(): walk(x)
+              elif isinstance(v, list):
+                  for x in v: walk(x)
+          walk(data)
+          with open('evidence.json','w',encoding='utf-8') as f:
+              json.dump(data,f,ensure_ascii=False,indent=2)
+          PY
+      - name: Upload evidence artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: m3-evidence-${{ github.run_id }}
+          path: evidence.json
+          retention-days: 30
+          if-no-files-found: error
