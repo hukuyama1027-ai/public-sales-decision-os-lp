@@ -1,11 +1,13 @@
 # PRODUCTION UAT PLAN｜AIMOS-CR-004
 
 - 文書ID: AIMOS-LP-UATPLAN-004
-- 版数: v0.1
-- 状態: READY
+- 版数: v0.2
+- 状態: SYSTEM_UAT_EXECUTED / HUMAN_VISUAL_UAT_PENDING
+- 実施日: 2026-09-03
 
 ## Automated/System UAT
-Productionで以下を確認する。
+
+Productionで以下を確認し、すべてPASSした。
 1. health = schema cr004
 2. CR-004 app shell表示
 3. 実官公需案件検索
@@ -20,5 +22,9 @@ Productionで以下を確認する。
 12. GitHub Actions OIDC authenticated Evidence export
 13. Evidence artifactがsanitized aggregateのみ
 
+結果は `UAT_RESULT_CR004.md` に記録する。
+
 ## Human Visual UAT
-`HUMAN_VISUAL_UAT_CR004.md` に従う。Automated/System UATでは代替しない。
+
+`HUMAN_VISUAL_UAT_CR004.md` に従う。
+Automated/System UATでは代替しない。
