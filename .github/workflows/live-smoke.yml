@@ -41,7 +41,8 @@ jobs:
       - name: Real public opportunity search
         run: |
           set -euo pipefail
-          curl --fail --show-error --silent --retry 4 --retry-all-errors --retry-delay 5 'https://public-sales-decision-os-lp.pages.dev/api/opportunities/search?q=AI&limit=5' | tee /tmp/search.json
+          SID="live-smoke-${GITHUB_RUN_ID}"
+          curl --fail --show-error --silent --retry 4 --retry-all-errors --retry-delay 5 -H "X-Session-Id: ${SID}" 'https://public-sales-decision-os-lp.pages.dev/api/opportunities/search?q=AI&limit=5' | tee /tmp/search.json
           python - <<'PY'
           import json
           d=json.load(open('/tmp/search.json'))
@@ -49,10 +50,7 @@ jobs:
           assert d.get('source') == 'kkj', d
           items=d.get('items') or []
           assert len(items) > 0, d
-          first=items[0]
-          assert first.get('title'), first
+          assert items[0].get('title'), items[0]
           print('search PASS count=', len(items))
-          print('sample title=', first.get('title'))
-          print('organization=', first.get('organization_name'))
-          print('source_url=', first.get('source_url'))
+          print('sample title=', items[0].get('title'))
           PY
