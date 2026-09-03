@@ -1,0 +1,103 @@
+name: p0-e2e
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/p0-e2e.yml'
+  workflow_dispatch:
+
+jobs:
+  production-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Production P0 scenario with synthetic anonymous profile
+        run: |
+          set -euo pipefail
+          BASE='https://public-sales-decision-os-lp.pages.dev'
+          TOKEN="$(python - <<'PY'
+          import secrets
+          print(secrets.token_urlsafe(32))
+          PY
+          )"
+          SID="p0-e2e-${GITHUB_RUN_ID}"
+          ID=''
+          cleanup() {
+            if [ -n "${ID}" ]; then
+              curl --silent --show-error -X DELETE -H "X-Client-Token: ${TOKEN}" "${BASE}/api/watch/${ID}" >/dev/null || true
+            fi
+            curl --silent --show-error -X DELETE -H "X-Client-Token: ${TOKEN}" "${BASE}/api/profile" >/dev/null || true
+          }
+          trap cleanup EXIT
+
+          curl --fail --show-error --silent -X PUT \
+            -H 'content-type: application/json' \
+            -H "X-Client-Token: ${TOKEN}" -H "X-Session-Id: ${SID}" \
+            --data '{"company_name":"P0 E2E Test IT","industry":"システム開発","services":"生成AI Web システム開発","regions":["全国"],"employee_scale":"10-30","desired_project_size":"undecided","public_experience":"considering","unified_qualification":"unknown","strengths":"AI DX RPA"}' \
+            "${BASE}/api/profile" | tee /tmp/profile.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/profile.json')); assert d.get('ok') is True, d
+          print('profile PASS')
+          PY
+
+          curl --fail --show-error --silent -H "X-Client-Token: ${TOKEN}" -H "X-Session-Id: ${SID}" \
+            "${BASE}/api/opportunities/search?q=AI&limit=5" | tee /tmp/search.json
+          ID="$(python - <<'PY'
+          import json
+          d=json.load(open('/tmp/search.json')); assert d.get('ok') is True and d.get('items'), d
+          print(d['items'][0]['id'])
+          PY
+          )"
+          echo "search PASS id=${ID}"
+
+          curl --fail --show-error --silent -H "X-Client-Token: ${TOKEN}" -H "X-Session-Id: ${SID}" \
+            "${BASE}/api/opportunities/${ID}" | tee /tmp/detail.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/detail.json'))
+          assert d.get('ok') is True, d
+          assert d.get('source',{}).get('title'), d
+          dec=d.get('decision'); assert dec and dec.get('decision') in ('GO','WATCH','NO-GO'), d
+          assert isinstance(dec.get('positive_reasons'), list), d
+          assert d.get('next_actions') and len(d['next_actions']) >= 5, d
+          assert '原典' in d.get('notice',''), d
+          print('detail/decision/NEXT ACTION PASS', dec.get('decision'), dec.get('score'))
+          PY
+
+          curl --fail --show-error --silent -X POST \
+            -H 'content-type: application/json' -H "X-Client-Token: ${TOKEN}" -H "X-Session-Id: ${SID}" \
+            --data "{\"opportunity_id\":\"${ID}\"}" "${BASE}/api/watch" | tee /tmp/watch-add.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/watch-add.json')); assert d.get('ok') is True and d.get('watched') is True, d
+          print('watch add PASS')
+          PY
+
+          curl --fail --show-error --silent -H "X-Client-Token: ${TOKEN}" "${BASE}/api/watch" | tee /tmp/watch.json
+          TEST_ID="${ID}" python - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/watch.json')); assert d.get('ok') is True, d
+          assert os.environ['TEST_ID'] in [x.get('id') for x in d.get('items',[])], d
+          print('watch persistence PASS')
+          PY
+
+          curl --fail --show-error --silent -H "X-Client-Token: ${TOKEN}" -H "X-Session-Id: ${SID}" \
+            "${BASE}/api/recommendations?limit=5" | tee /tmp/recommendations.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/recommendations.json')); assert d.get('ok') is True and d.get('items'), d
+          assert all(x.get('decision') for x in d['items']), d
+          print('recommendations PASS count=',len(d['items']))
+          PY
+
+          curl --fail --show-error --silent -H "X-Client-Token: ${TOKEN}" "${BASE}/api/home" | tee /tmp/home.json
+          TEST_ID="${ID}" python - <<'PY'
+          import json,os
+          d=json.load(open('/tmp/home.json')); assert d.get('ok') is True, d
+          assert d.get('profile_status') == 'complete', d
+          assert d.get('recommendations'), d
+          assert os.environ['TEST_ID'] in [x.get('id') for x in d.get('watch_items',[])], d
+          print('home/profile/watch/recommendation PASS')
+          PY
+
+          echo 'P0 PRODUCTION E2E PASS'
