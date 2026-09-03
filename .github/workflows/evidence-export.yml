@@ -25,7 +25,7 @@ jobs:
           OIDC_AUDIENCE: aimos-public-sales-evidence
         run: |
           python3 - <<'PY'
-          import json, os, urllib.parse, urllib.request
+          import base64, json, os, urllib.error, urllib.parse, urllib.request
           oidc_url = os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']
           sep = '&' if '?' in oidc_url else '?'
           req = urllib.request.Request(
@@ -33,9 +33,19 @@ jobs:
               headers={'Authorization': 'bearer ' + os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
           with urllib.request.urlopen(req, timeout=15) as r:
               token = json.load(r)['value']
+          payload_part = token.split('.')[1]
+          payload_part += '=' * ((4 - len(payload_part) % 4) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload_part.encode()).decode())
+          safe_claims = {k: claims.get(k) for k in ('iss','aud','repository','ref','workflow_ref','event_name')}
+          print('OIDC safe claims:', json.dumps(safe_claims, ensure_ascii=False, sort_keys=True))
           req2 = urllib.request.Request(os.environ['EVIDENCE_URL'], headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/json'})
-          with urllib.request.urlopen(req2, timeout=30) as r:
-              data = json.load(r)
+          try:
+              with urllib.request.urlopen(req2, timeout=30) as r:
+                  data = json.load(r)
+          except urllib.error.HTTPError as e:
+              body = e.read().decode('utf-8','replace')[:500]
+              print('Evidence endpoint HTTP error:', e.code, body)
+              raise
           if data.get('ok') is not True:
               raise SystemExit('evidence endpoint returned non-ok response')
           forbidden = {'client_key','session_id','company_name','email','services','keyword'}
