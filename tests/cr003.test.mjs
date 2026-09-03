@@ -28,6 +28,9 @@ test('ASCII AI keyword does not match mail substring',()=>assert.equal(keywordMa
 test('ASCII AI keyword matches Japanese-connected acronym',()=>assert.equal(keywordMatches({title:'生成AI基盤開発',description:''},'AI'),true));
 test('ASCII Web keyword matches Web app text',()=>assert.equal(keywordMatches({title:'Webアプリ開発',description:''},'Web'),true));
 test('Japanese keyword keeps substring matching',()=>assert.equal(keywordMatches({title:'業務システム開発',description:''},'システム開発'),true));
+test('late-page AI file-format noise is ignored',()=>{const desc='広報紙作成業務。'.repeat(100)+'JPEG GIF EPS AI ファイル形式';assert.equal(keywordMatches({title:'市報作成及び印刷業務',description:desc},'AI'),false)});
+test('late-page related AI link noise is ignored',()=>{const desc='旅券輸送業務の一般競争入札。'.repeat(80)+'関連リンク: 生成AIサービス共同調達';assert.equal(keywordMatches({title:'旅券等輸送業務',description:desc},'AI'),false)});
+test('AI in opening procurement description still matches',()=>{const desc='本業務は被災者支援AIサービスの概念実証に用いるデータ生成業務である。'+'詳細'.repeat(700);assert.equal(keywordMatches({title:'擬似データ生成業務',description:desc},'AI'),true)});
 
 test('opportunity normalizer never invents deadline',async()=>{const x=await normalizeOpportunity(parseKkjXml(one)[0],'2026-09-03T00:00:00Z');assert.equal(x.deadline_at,null);assert.equal(x.deadline_source,null)});
 test('opportunity normalizer produces deterministic id',async()=>{const src=parseKkjXml(one)[0];const a=await normalizeOpportunity(src,'2026-09-03T00:00:00Z');const b=await normalizeOpportunity(src,'2026-09-04T00:00:00Z');assert.equal(a.id,b.id)});
