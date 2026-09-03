@@ -1,7 +1,7 @@
 name: test
 on:
   push:
-    branches: [main, cr-003-free-os-v0.1]
+    branches: [main, cr-003-free-os-v0.1, cr-004-ui-ux-v0.1]
   pull_request:
     branches: [main]
 permissions:
