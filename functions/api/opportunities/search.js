@@ -1,21 +1,25 @@
 import { fetchKkj } from '../../../lib/kkj-adapter.js';
 import { normalizeOpportunities } from '../../../lib/opportunity-normalizer.js';
 import { prefectureCode } from '../../../lib/prefectures.js';
-import { publicOpportunity, searchCached, upsertOpportunities } from '../../../lib/db.js';
+import { searchCached, upsertOpportunities } from '../../../lib/db.js';
 import { requireClientKey } from '../../../lib/client-token.js';
 import { recordEvent } from '../../../lib/events.js';
+import { opportunityViewModel, sortViewModels } from '../../../lib/view-model.js';
 import { cleanText, json, validDate } from '../../../lib/validation.js';
 
+const SORTS=new Set(['default','new','deadline','fit']);
 function parseFilters(url){
   const p=url.searchParams;
-  return {q:cleanText(p.get('q'),100),prefecture:cleanText(p.get('prefecture'),20),organization:cleanText(p.get('organization'),100),announcedFrom:cleanText(p.get('announced_from'),10),announcedTo:cleanText(p.get('announced_to'),10),deadlineFrom:cleanText(p.get('deadline_from'),10),deadlineTo:cleanText(p.get('deadline_to'),10),category:cleanText(p.get('category'),30),procedure:cleanText(p.get('procedure'),30),newOnly:p.get('new')==='1',deadlineDays:[7,14].includes(Number(p.get('deadline_days')))?Number(p.get('deadline_days')):null,page:Math.max(1,Number(p.get('page'))||1),limit:Math.min(50,Math.max(1,Number(p.get('limit'))||20))};
+  const sort=cleanText(p.get('sort'),20)||'default';
+  return {q:cleanText(p.get('q'),100),prefecture:cleanText(p.get('prefecture'),20),organization:cleanText(p.get('organization'),100),announcedFrom:cleanText(p.get('announced_from'),10),announcedTo:cleanText(p.get('announced_to'),10),deadlineFrom:cleanText(p.get('deadline_from'),10),deadlineTo:cleanText(p.get('deadline_to'),10),category:cleanText(p.get('category'),30),procedure:cleanText(p.get('procedure'),30),newOnly:p.get('new')==='1',deadlineDays:[7,14].includes(Number(p.get('deadline_days')))?Number(p.get('deadline_days')):null,page:Math.max(1,Number(p.get('page'))||1),limit:Math.min(50,Math.max(1,Number(p.get('limit'))||20)),sort:SORTS.has(sort)?sort:'invalid'};
 }
-function validFilters(f){return [f.announcedFrom,f.announcedTo,f.deadlineFrom,f.deadlineTo].every(validDate);}
-function isFresh(rows){if(!rows.length)return false;const newest=Math.max(...rows.map(r=>Date.parse(r.fetched_at||0)).filter(Number.isFinite));return newest && Date.now()-newest<6*3600000;}
+function validFilters(f){return f.sort!=='invalid'&&[f.announcedFrom,f.announcedTo,f.deadlineFrom,f.deadlineTo].every(validDate);}
+function isFresh(rows){if(!rows.length)return false;const newest=Math.max(...rows.map(r=>Date.parse(r.fetched_at||0)).filter(Number.isFinite));return newest&&Date.now()-newest<6*3600000;}
+async function privateContext(db,clientKey){if(!clientKey)return{profile:null,watches:new Map()};const profile=await db.prepare('SELECT * FROM company_profiles WHERE client_key=?').bind(clientKey).first();let rows=[];try{rows=(await db.prepare('SELECT opportunity_id,source_hash_snapshot FROM watch_items WHERE client_key=? LIMIT 200').bind(clientKey).all()).results||[];}catch{rows=(await db.prepare('SELECT opportunity_id FROM watch_items WHERE client_key=? LIMIT 200').bind(clientKey).all()).results||[];}return{profile,watches:new Map(rows.map(x=>[x.opportunity_id,x]))};}
 
 export async function onRequestGet({request,env}){
   if(!env.DB)return json({ok:false,error:'DB_UNAVAILABLE'},503);
-  const f=parseFilters(new URL(request.url));if(!validFilters(f))return json({ok:false,error:'INVALID_INPUT',message:'日付形式を確認してください'},400);
+  const f=parseFilters(new URL(request.url));if(!validFilters(f))return json({ok:false,error:'INVALID_INPUT',message:'検索条件を確認してください'},400);
   let rows=[];try{rows=await searchCached(env.DB,f);}catch{return json({ok:false,error:'DB_UNAVAILABLE'},503);}
   let stale=false,upstreamError=null;const hasKey=!!(f.q||f.organization||f.prefecture);
   if(hasKey&&!isFresh(rows)){
@@ -30,8 +34,12 @@ export async function onRequestGet({request,env}){
     }catch(e){upstreamError=cleanText(e.message,120);stale=true;}
   }
   if(!rows.length&&upstreamError)return json({ok:false,error:'UPSTREAM_UNAVAILABLE',message:'公式APIから最新情報を取得できませんでした'},503);
-  const sessionId=cleanText(request.headers.get('x-session-id'),80)||'anonymous',clientKey=await requireClientKey(request);const filterCount=['prefecture','organization','announcedFrom','announcedTo','deadlineFrom','deadlineTo','category','procedure'].filter(k=>f[k]).length+(f.newOnly?1:0)+(f.deadlineDays?1:0);
-  try{await env.DB.prepare('INSERT INTO search_history(client_key,session_id,keyword,filters_json,result_count,searched_at) VALUES(?,?,?,?,?,?)').bind(clientKey,sessionId,f.q||null,JSON.stringify({...f,q:undefined}),rows.length,new Date().toISOString()).run();await recordEvent(env.DB,{event_type:'public_search',session_id:sessionId,client_key:clientKey,entity_type:'search',metadata:{has_keyword:!!f.q,filter_count:filterCount}});await recordEvent(env.DB,{event_type:'public_search_result_view',session_id:sessionId,client_key:clientKey,entity_type:'search',metadata:{result_count:rows.length,stale}});}catch{}
-  return json({ok:true,items:rows.map(publicOpportunity),count:rows.length,source:'kkj',cache:{stale},disclaimer:'官公需情報ポータルAPIを利用しています。掲載情報はすべての公共調達案件を網羅するものではありません。'});
+  const sessionId=cleanText(request.headers.get('x-session-id'),80)||'anonymous',clientKey=await requireClientKey(request);const ctx=await privateContext(env.DB,clientKey);
+  let models=rows.map(row=>opportunityViewModel(row,ctx.profile,ctx.watches.get(row.id)||null));
+  const sort=f.sort==='fit'&&!ctx.profile?'default':f.sort;models=sortViewModels(models,sort);
+  const items=models.map(vm=>({...vm.source,decision:vm.decision,match_band:vm.match_band,watched:vm.watched,has_update:vm.has_update,feature_tags:vm.feature_tags,reason_summary:vm.reason_summary,check_summary:vm.check_summary}));
+  const filterCount=['prefecture','organization','announcedFrom','announcedTo','deadlineFrom','deadlineTo','category','procedure'].filter(k=>f[k]).length+(f.newOnly?1:0)+(f.deadlineDays?1:0);
+  try{await env.DB.prepare('INSERT INTO search_history(client_key,session_id,keyword,filters_json,result_count,searched_at) VALUES(?,?,?,?,?,?)').bind(clientKey,sessionId,f.q||null,JSON.stringify({...f,q:undefined}),items.length,new Date().toISOString()).run();await recordEvent(env.DB,{event_type:'public_search',session_id:sessionId,client_key:clientKey,entity_type:'search',metadata:{has_keyword:!!f.q,filter_count:filterCount}});await recordEvent(env.DB,{event_type:'public_search_result_view',session_id:sessionId,client_key:clientKey,entity_type:'search',metadata:{result_count:items.length,stale}});}catch{}
+  return json({ok:true,items,count:items.length,sort,source:'kkj',cache:{stale},disclaimer:'官公需情報ポータルAPIを利用しています。掲載情報はすべての公共調達案件を網羅するものではありません。'});
 }
-export const __test={parseFilters,validFilters,isFresh};
+export const __test={parseFilters,validFilters,isFresh,privateContext,SORTS};
