@@ -3,6 +3,14 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '17 21 * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/evidence-export.yml'
+      - 'functions/api/internal/evidence.js'
+      - 'lib/evidence.js'
+      - 'lib/github-oidc.js'
+      - 'lib/schema.js'
 permissions:
   contents: read
   id-token: write
