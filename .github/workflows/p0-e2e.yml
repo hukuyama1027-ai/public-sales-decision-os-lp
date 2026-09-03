@@ -4,12 +4,17 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/p0-e2e.yml'
+      - 'functions/**'
+      - 'lib/**'
+      - 'src/app/**'
   workflow_dispatch:
 
 jobs:
   production-e2e:
     runs-on: ubuntu-latest
     steps:
+      - name: Wait for Cloudflare Pages deployment
+        run: sleep 30
       - name: Production P0 scenario with synthetic anonymous profile
         run: |
           set -euo pipefail
@@ -84,20 +89,30 @@ jobs:
           curl --fail --show-error --silent -H "X-Client-Token: ${TOKEN}" -H "X-Session-Id: ${SID}" \
             "${BASE}/api/recommendations?limit=5" | tee /tmp/recommendations.json
           python - <<'PY'
-          import json
+          import json,re
           d=json.load(open('/tmp/recommendations.json')); assert d.get('ok') is True and d.get('items'), d
-          assert all(x.get('decision') for x in d['items']), d
-          print('recommendations PASS count=',len(d['items']))
+          items=d['items']
+          assert all(x.get('decision',{}).get('decision') in ('GO','WATCH') for x in items), d
+          assert all(x.get('decision',{}).get('service_relevant') is True for x in items), d
+          bad=re.compile(r'旅券.*輸送|河岸保護|舗装維持|ビニールシート|マシニングセンタ')
+          assert not any(bad.search(x.get('source',{}).get('title','')) for x in items), [x.get('source',{}).get('title') for x in items]
+          print('recommendations quality PASS count=',len(items))
+          print('recommendation titles=',[x.get('source',{}).get('title') for x in items])
           PY
 
           curl --fail --show-error --silent -H "X-Client-Token: ${TOKEN}" "${BASE}/api/home" | tee /tmp/home.json
           TEST_ID="${ID}" python - <<'PY'
-          import json,os
+          import json,os,re
           d=json.load(open('/tmp/home.json')); assert d.get('ok') is True, d
           assert d.get('profile_status') == 'complete', d
           assert d.get('recommendations'), d
           assert os.environ['TEST_ID'] in [x.get('id') for x in d.get('watch_items',[])], d
-          print('home/profile/watch/recommendation PASS')
+          rec=d['recommendations']
+          assert all(x.get('decision',{}).get('decision') in ('GO','WATCH') for x in rec), d
+          assert all(x.get('decision',{}).get('service_relevant') is True for x in rec), d
+          bad=re.compile(r'旅券.*輸送|河岸保護|舗装維持|ビニールシート|マシニングセンタ')
+          assert not any(bad.search(x.get('source',{}).get('title','')) for x in rec), [x.get('source',{}).get('title') for x in rec]
+          print('home/profile/watch/recommendation quality PASS')
           PY
 
           echo 'P0 PRODUCTION E2E PASS'
