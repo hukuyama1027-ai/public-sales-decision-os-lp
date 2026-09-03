@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Wait for Cloudflare Pages deployment
-        run: sleep 30
+        run: sleep 35
       - name: Production P0 scenario with synthetic anonymous profile
         run: |
           set -euo pipefail
@@ -28,7 +28,7 @@ jobs:
           ID=''
           cleanup() {
             if [ -n "${ID}" ]; then
-              curl --silent --show-error -X DELETE -H "X-Client-Token: ${TOKEN}" "${BASE}/api/watch/${ID}" >/dev/null || true
+              curl --silent --show-error -X DELETE -H "X-Client-Token: ${TOKEN}" -H "X-Session-Id: ${SID}" "${BASE}/api/watch/${ID}" >/dev/null || true
             fi
             curl --silent --show-error -X DELETE -H "X-Client-Token: ${TOKEN}" "${BASE}/api/profile" >/dev/null || true
           }
@@ -46,11 +46,13 @@ jobs:
           PY
 
           curl --fail --show-error --silent -H "X-Client-Token: ${TOKEN}" -H "X-Session-Id: ${SID}" \
-            "${BASE}/api/opportunities/search?q=AI&limit=5" | tee /tmp/search.json
+            "${BASE}/api/opportunities/search?q=AI&limit=5&sort=fit" | tee /tmp/search.json
           ID="$(python - <<'PY'
           import json
           d=json.load(open('/tmp/search.json')); assert d.get('ok') is True and d.get('items'), d
-          print(d['items'][0]['id'])
+          first=d['items'][0]
+          assert first.get('title'), first
+          print(first['id'])
           PY
           )"
           echo "search PASS id=${ID}"
@@ -64,9 +66,12 @@ jobs:
           assert d.get('source',{}).get('title'), d
           dec=d.get('decision'); assert dec and dec.get('decision') in ('GO','WATCH','NO-GO'), d
           assert isinstance(dec.get('positive_reasons'), list), d
+          assert d.get('match_band') in ('high','medium','low'), d
+          assert isinstance(d.get('feature_tags'), list), d
           assert d.get('next_actions') and len(d['next_actions']) >= 5, d
+          prep=d.get('application_prep'); assert isinstance(prep,dict) and isinstance(prep.get('items'),list), d
           assert '原典' in d.get('notice',''), d
-          print('detail/decision/NEXT ACTION PASS', dec.get('decision'), dec.get('score'))
+          print('detail/decision/match band/NEXT ACTION PASS', dec.get('decision'), d.get('match_band'))
           PY
 
           curl --fail --show-error --silent -X POST \
@@ -82,8 +87,12 @@ jobs:
           TEST_ID="${ID}" python - <<'PY'
           import json,os
           d=json.load(open('/tmp/watch.json')); assert d.get('ok') is True, d
-          assert os.environ['TEST_ID'] in [x.get('id') for x in d.get('items',[])], d
-          print('watch persistence PASS')
+          items=d.get('items',[])
+          item=next((x for x in items if x.get('id')==os.environ['TEST_ID']),None); assert item, d
+          assert item.get('match_band') in ('high','medium','low'), item
+          assert isinstance(item.get('has_update'),bool), item
+          assert isinstance(item.get('feature_tags'),list), item
+          print('watch persistence / CR-004 view model PASS')
           PY
 
           curl --fail --show-error --silent -H "X-Client-Token: ${TOKEN}" -H "X-Session-Id: ${SID}" \
@@ -97,7 +106,6 @@ jobs:
           bad=re.compile(r'旅券.*輸送|河岸保護|舗装維持|ビニールシート|マシニングセンタ')
           assert not any(bad.search(x.get('source',{}).get('title','')) for x in items), [x.get('source',{}).get('title') for x in items]
           print('recommendations quality PASS count=',len(items))
-          print('recommendation titles=',[x.get('source',{}).get('title') for x in items])
           PY
 
           curl --fail --show-error --silent -H "X-Client-Token: ${TOKEN}" "${BASE}/api/home" | tee /tmp/home.json
@@ -105,14 +113,18 @@ jobs:
           import json,os,re
           d=json.load(open('/tmp/home.json')); assert d.get('ok') is True, d
           assert d.get('profile_status') == 'complete', d
+          pc=d.get('profile_completion'); assert isinstance(pc,dict) and 0 <= pc.get('percent',-1) <= 100, d
+          assert isinstance(d.get('today_actions'),list), d
           assert d.get('recommendations'), d
+          assert isinstance(d.get('watch_updates'),list), d
+          assert isinstance(d.get('os_suggestion'),dict), d
           assert os.environ['TEST_ID'] in [x.get('id') for x in d.get('watch_items',[])], d
           rec=d['recommendations']
           assert all(x.get('decision',{}).get('decision') in ('GO','WATCH') for x in rec), d
           assert all(x.get('decision',{}).get('service_relevant') is True for x in rec), d
           bad=re.compile(r'旅券.*輸送|河岸保護|舗装維持|ビニールシート|マシニングセンタ')
           assert not any(bad.search(x.get('source',{}).get('title','')) for x in rec), [x.get('source',{}).get('title') for x in rec]
-          print('home/profile/watch/recommendation quality PASS')
+          print('CR-004 home/profile/watch/recommendation quality PASS')
           PY
 
-          echo 'P0 PRODUCTION E2E PASS'
+          echo 'CR-004 P0 PRODUCTION E2E PASS'
