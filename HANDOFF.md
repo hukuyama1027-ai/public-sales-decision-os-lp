@@ -1,78 +1,79 @@
-# HANDOFF｜AIMOS-CR-003
+# HANDOFF｜AIMOS-CR-004
 
 - 文書ID: AIMOS-LP-HO-001
-- 版数: v0.1
+- 版数: v0.2
 - 状態: READY_FOR_BUILD
-- Target branch: `cr-003-free-os-v0.1`
-- Base branch: `main`
+- Target branch: `cr-004-ui-ux-v0.1`
+- Production baseline: `baseline-cr003-production`
 
 ## Goal
-既存需要検証LPを維持しつつ、実公共案件を検索・保存・比較・判断できる無料版「公共営業OS v0.1」を同一Cloudflareプロジェクトに実装し、M3 Product Usage Evidenceを取得可能にする。
+CR-003 Productionを破壊せず、公共案件版求人サイト型UXへ再設計し、CR-004適用前後のM3 Evidenceを自動比較可能にする。
 
 ## Must Read
-AGENTS.md → CHANGE_REQUEST_CR-003.md → REQUIREMENTS.md → BASIC_DESIGN.md → UI_DESIGN.md → DB_DESIGN.md → API_DESIGN.md → DATA_FLOW.md → DETAIL_DESIGN.md → SECURITY_REVIEW.md → TEST_PLAN.md。
+AGENTS.md → CHANGE_REQUEST_CR-004.md → REQUIREMENTS.md → CHANGE_IMPACT_CR-004.md → BASIC_DESIGN.md → UI_DESIGN.md → SCREEN_FLOW.md → DB_DESIGN.md → API_DESIGN.md → DATA_FLOW.md → DETAIL_DESIGN.md → EVIDENCE_EXPORT_DESIGN.md → SECURITY_REVIEW.md → TEST_PLAN.md → READY_TO_BUILD.md。
 
 ## P0 Tasks
-### DB-CR003-001
-`migration_cr003.sql` / full `schema.sql` 更新。既存events/leads保持。
-Done: DB_DESIGN準拠、破壊的DROPなし、migration test。
+### DB-004
+- events.release_version
+- watch_items.source_hash_snapshot
+- schema marker cr004
+- non-destructive bootstrap
 
-### DATA-CR003-001
-官公需XML adapter/normalizer。固定公式endpoint、Count<=30/50、欠損NULL、deadline推測禁止。
-Done: fixtures unit test + upstream failure handling。
+### API-004
+- Home view model
+- Search decision/watch/update/sort
+- Detail match band/application prep
+- Profile completion/event split
+- WATCH update/event
 
-### API-CR003-001
-search/detail/home/profile/watch/recommendations/recent/health/event拡張。
-Done: API_DESIGN response/validation/security test。
+### UI-004
+- Home section priority
+- job-site cards
+- detail ordering
+- WATCH update UX
+- profile completion
+- application prep checklist
+- mobile/desktop nav
 
-### MATCH-CR003-001
-ルール型fit/GO-WATCH-NO-GO/reasons/information completeness/NEXT ACTION。
-Done: TP-MATCH/TP-NEXT PASS。
+### EVT-004
+- preserve existing event names
+- add application_prep_start/profile_update/watch_remove
+- server release_version=cr004
 
-### UI-CR003-001
-`/app/` job-site型UI、5ナビ、home/search/detail/watch/profile。LP→app導線。
-Done: desktop/mobile states + source/OS separation。
+### EVIDENCE-004
+- GitHub OIDC verify
+- internal aggregate API
+- daily/manual evidence-export workflow
+- sanitized artifact
 
-### EVIDENCE-CR003-001
-Product Usage events追加。
-Done: event allowlist + D1 event recording。
+### TEST-004
+- existing 59 regression
+- CR-004 tests
+- OIDC/evidence security tests
+- Production E2E
 
-### SEC-CR003-001
-client token hash、IDOR scope、CSP、URL validation、profile delete。
-Done: TP-SEC PASS。
-
-### TEST-CR003-001
-unit/component/regression/system。実Cloudflareはmerge後。
-Done: local runnable tests PASS、未実行項目を明記。
-
-## P1 after P0 PASS
-- deadline grouping/today tasks/recent UI/readiness
-- AI concierge via Workers AI Free allocation
-P1でP0 releaseを遅らせない。AI bindingが未設定でもP0は完成可能。
+## P1 Remaining
+Workers AI concierge, persistent application-prep progress, history UI, advanced deadline management, public-sales readiness, organization research.
 
 ## Deployment
-1. branch tests
-2. merge to main
-3. Cloudflare Pages auto deploy
-4. production D1 migration
-5. actual official API search
-6. D1 persistence/events
-7. UAT
-
-Scheduled Worker/CronはPages deployとは別設定が必要な場合がある。on-demand search/cacheをP0主経路として必ず成立させる。
+1. branch CI
+2. P0 Gate
+3. merge main
+4. Cloudflare auto deploy
+5. health/schema cr004
+6. Production app/search/profile/watch/detail/evidence E2E
+7. GitHub OIDC evidence export
+8. Human Visual UAT
+9. AIMOS-MGMT-SYNC-004
 
 ## Prohibitions
-- payment/paid API without approval
-- competitive-service scraping
-- autonomous bidding/submission
-- eligibility/legal guarantee
-- fabricated deadlines/amounts/requirements
-- storing raw client token
-- cross-client private data
-- arbitrary SSRF proxy
-
-## Known Unknown
-AIMOS-CR-002本文は現在の正式ソースで未発見。current mainを統合ベースラインとする。CR-002が後日見つかったらDONE前差分レビュー。
+- CR-003 baseline rewrite
+- event rename/delete
+- fabricated tags/deadlines/eligibility
+- public unauth metrics API
+- raw identifiers in evidence artifact
+- long-lived secret if OIDC works
+- competitor design/code copying
 
 ## Completion
-P0 success criteria + TEST_PLAN Exit Criteria + production UAT。User acceptanceまではDONEにしない。
+Automated + Production System UAT PASS, BLOCKING 0, Fixed Cost 0, Human Visual UAT status recorded, AI経営OS formal handoff issued.
