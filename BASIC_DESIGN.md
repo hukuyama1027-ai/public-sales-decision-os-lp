@@ -1,166 +1,191 @@
-# BASIC_DESIGN｜公共営業 意思決定OS｜LP + 無料版 v0.1
+# BASIC_DESIGN｜公共営業 意思決定OS｜CR-004
 
 - 文書ID: AIMOS-LP-BD-001
-- 版数: v0.2
+- 版数: v0.3
 - 状態: APPROVED_BY_AI_DESIGN
-- 対応: AIMOS-CR-003
+- 対応: AIMOS-CR-003 + AIMOS-CR-004 + Issue #7
+- Production基準線: `baseline-cr003-production`
 
 ## 1. 全体構成
-
 ```text
 Browser
- ├─ /                     既存需要検証LP
- └─ /app/                 無料版公共営業OS
-      │
-      ├─ Pages Functions API
-      │    ├─ D1
-      │    ├─ 官公需情報ポータル検索API（公式/XML）
-      │    └─ Workers AI（P1 / Free枠内のみ）
-      │
-      └─ 原典リンク → 各発注機関/官公需ポータル
+ ├─ /                         需要検証LP
+ └─ /app/                     無料版公共営業OS
+      ├─ Home
+      ├─ Search
+      ├─ Opportunity Detail
+      ├─ WATCH
+      ├─ AI Support(P1)
+      └─ My Page/Profile
+          │
+          └─ Pages Functions API
+               ├─ D1
+               ├─ 官公需情報ポータルAPI（公式/XML）
+               └─ Workers AI（P1）
 
-Scheduled Worker（P0）
- └─ 1日2回程度 → 官公需API → D1 opportunities upsert
+GitHub Actions Evidence Export
+  ├─ GitHub OIDC short-lived JWT
+  ├─ GET /api/internal/evidence
+  └─ sanitized evidence.json → Actions Artifact
 ```
 
-既存LPは壊さず維持し、無料版への導線を追加する。無料版は同一Cloudflare Pagesプロジェクト配下で提供する。
+CR-003 Productionの検索・D1・判定ロジックを基盤として維持し、CR-004は主にApp Shell/UI/表示用APIレスポンスを拡張する。
 
-## 2. 技術選定
-- HTML5 / CSS3 / Vanilla JavaScript ES Modules
-- Cloudflare Pages
-- Cloudflare Pages Functions
-- Cloudflare D1
-- Cloudflare Worker + Cron Trigger（定期同期）
-- Cloudflare Workers AI（P1、Free allocationのみ）
-- XML parser: `fast-xml-parser` をサーバー側Functions/Workerのみで使用
+## 2. UI情報アーキテクチャ
+### Home
+1. 今日やること
+2. あなたへのおすすめ案件
+3. 新着案件
+4. 締切間近
+5. WATCH更新
+6. OSからの提案 / AI相談導線
 
-フロントフレームワークは採用しない。M3検証でのOwner Hoursと依存更新負荷を抑えつつ、JSはモジュール分割して保守性を確保する。
+### Search
+検索条件 → 結果カード → 詳細 → WATCH/応募準備。
+Homeからも各案件へ同じ詳細画面へ遷移する。
 
-## 3. 画面構成
-### 3.1 LP `/`
-既存Hero/課題/仕組み/価格/診断/FAQ/Privacyを維持。診断完了後またはHeroから「無料版で実案件を探す」導線を追加する。
+### Detail
+概要 → 判断 → 条件 → 行動 → 原典。
+原典情報とOS参考判断を独立セクションにする。
 
-### 3.2 無料版 `/app/`
-SPA型。主要ビュー:
-1. HOME
-2. SEARCH
-3. OPPORTUNITY DETAIL
-4. WATCH
-5. AI SUPPORT
-6. MY PAGE / COMPANY PROFILE
+## 3. 案件カードView Model
+APIのsource/decisionをUI向けに組み合わせる。
+- decision: GO/WATCH/NO-GO
+- match_band: high/medium/low
+- title/org/region/category/procedure
+- notice_date_label: `公告日/取得日`
+- deadline_label: trustedのみ、未確定は`原典で確認`
+- feature_tags[]: 原典またはdeterministic ruleのみ
+- reason_summary[] max2
+- check_summary[] max2
+- watched
+- has_update
+- primary_action: GO=応募準備を見る / WATCH=WATCH / NO-GO=理由を見る
 
-スマホ下部ナビ: ホーム / 案件検索 / WATCH / AI相談 / マイページ。
-PCは上部ナビ+コンテンツ2カラムを基本とする。
+内部scoreはsortに使えるが、UIはbandを主表示する。
 
-## 4. HOME
-優先順:
-1. あなたへのおすすめ案件
-2. 新着案件
-3. 締切間近
-4. WATCH中
-5. 今日やること
-6. AIからの提案（P1）
+## 4. Home Aggregation
+`GET /api/home`を拡張。
+- today_actions[]
+- recommendations[]
+- new_items[]
+- deadline_items[]
+- watch_updates[]
+- os_suggestion
+- profile_status
+- profile_completion
 
-プロフィール未登録時は、検索を妨げず「おすすめ精度を上げるためプロフィール登録」を案内する。
+各sectionは最大5件程度。検索フォームはHome主役にしない。
 
-## 5. 公共案件取得フロー
-### 5.1 定期同期
-Cron → curated query（IT/AI/DX/Web/システム等）→ 官公需API → XML parse → normalize → D1 upsert → sync_runs記録。
+## 5. Search
+既存公式API proxy/D1 cacheを維持。
+検索APIはtokenがある場合、各itemへ`decision`、`watched`、`has_update`を付与する。
+並び順:
+- relevance/default: source検索順 + cache
+- new: announced_at desc
+- deadline: deadline_at non-null asc
+- fit: profileあり時 decision score desc
 
-初期頻度は1日2回。API利用条件と実負荷を優先し、頻度は固定しない。
+trusted deadlineがない案件をdeadline sortの上位へ推測配置しない。
 
-### 5.2 ユーザー検索
-検索入力 → `/api/opportunities/search` → D1検索。
-必要条件でD1結果が不足/古い場合のみ、Pages Functionが官公需APIへ1回問い合わせ → normalize/upsert → D1からレスポンス。
+## 6. WATCH更新判定
+`watch_items.source_hash_snapshot`へ保存時の`opportunities.raw_hash`を保持。
+現在raw_hashと異なる時だけ`has_update=true`。
+期限/状態スナップショットも既存どおり保持。
 
-外部API障害時はD1キャッシュ結果を返し、取得時刻を表示する。
+## 7. Profile Completion
+永続列は追加しない。
+必須/推奨9項目の入力状態をserverまたはclientで算出し0〜100へ丸める。
+UI表示は例:`プロフィール完成度 78%`。これは入力充足率であり公共営業能力スコアではない。
 
-## 6. 官公需API正規化
-主な公式タグを内部項目へ変換する。
-- ProjectName → title
-- OrganizationName → organization_name
-- CftIssueDate → announced_at
-- Category → category
-- ProcedureType → procedure_type
-- Location / LG code / names → region fields
-- Certification → certification
-- ProjectDescription → source_description
-- Attachments → attachments_json
-- ExternalDocumentURI等 → source_url
+## 8. 応募準備チェック(P0 light)
+既存NEXT ACTIONを表示用checklistに変換。
+- 永続完了状態なし
+- GOカードの「応募準備を見る」でdetailの該当sectionへscroll
+- 初回表示/CTAで`application_prep_start`
 
-フィールド欠損はNULL。日付の意味が不明/締切ではないものを「締切」として推測しない。
+P1で進捗保存tableを追加可能なcomponent境界にする。
 
-## 7. 匿名利用・プロフィール
-v0.1ではアカウント登録を作らない。
+## 9. Evidence Release Comparison
+`events.release_version`追加。
+server-side `recordEvent()`がCR-004コードから記録するeventへ`cr004`を自動付与する。
+Browserからrelease_versionを自由指定させない。
+既存event_typeは変更しない。
 
-初回 `/app/` 利用時:
-1. Browserで32-byte相当の `client_token` を生成
-2. localStorageへ保存
-3. APIリクエストヘッダ `X-Client-Token` で送信
-4. ServerでSHA-256化し `client_key` としてD1利用
+## 10. Evidence自動集計
+### Authentication
+GitHub Actions workflowが`id-token: write`でOIDC JWTを取得。
+Cloudflare Functionは:
+1. Bearer JWT parse
+2. GitHub fixed JWKS fetch/cache
+3. RS256署名検証
+4. `iss`
+5. custom `aud`
+6. `repository`
+7. `ref=refs/heads/main`
+8. expected `workflow_ref`
+9. exp/nbf
+を検証する。
 
-D1にはraw tokenを保存しない。プロフィール/WATCH/閲覧履歴は同一ブラウザで復元。クロスデバイスは対象外。
+### Output
+`GET /api/internal/evidence?days=7|30|90`
+- raw event rowを返さない
+- raw client_key/session_id/search term/profileを返さない
+- 集計値とrelease別比較のみ
 
-## 8. WATCH
-WATCH追加時に `client_key + opportunity_id` を一意制約で保存。保存時刻、期限スナップショット、案件状態を保存。現在値はopportunitiesから表示し、将来の変更通知を追加できる構造とする。
+### Delivery
+`.github/workflows/evidence-export.yml`
+- daily + workflow_dispatch
+- OIDC token取得
+- evidence endpoint call
+- JSON schema validation
+- artifact upload
+- retention 30日
 
-## 9. おすすめ/GO-WATCH-NO-GO
-### 9.1 ルール主体
-- サービス/得意分野とタイトル・概要のキーワード一致
-- 対応地域一致
-- カテゴリ一致
-- 希望案件規模（信頼できる金額がある場合のみ）
-- 資格一致/不足/不明
-- 公共案件経験
-- 新しさ
+AI経営OSはGitHub connectorから最新run/artifactを取得する。
 
-### 9.2 出力
-- fit_score 0-100
-- information_completeness 0-100
-- decision: GO / WATCH / NO-GO
-- positive_reasons[]
-- check_points[]
-- missing_information[]
+## 11. DB
+既存tables保持。
+Migration CR-004:
+- events.release_version TEXT NULL
+- watch_items.source_hash_snapshot TEXT NULL
+schema marker `cr004`。
+破壊的DROPなし。
 
-NO-GOは「参加不可」ではなく「現時点で優先度低」。重要条件が不明な場合はWATCHへ寄せる。
+## 12. Event
+既存eventは継続。
+追加:
+- application_prep_start
+- profile_update
+- watch_remove
 
-## 10. NEXT ACTION
-ルール生成を基本とする。
-- 原典公告を開く
-- 参加資格を確認
-- 質問期限を確認
-- 説明会の有無を確認
-- 提出資料を確認
+profile初回保存はcompany_profile_complete、2回目以降はprofile_update。
 
-取得済み情報に応じて「資格情報が未取得」「締切情報は原典確認」等を追加する。
+## 13. セキュリティ
+既存client token hash/IDOR/XSS/SSRF/CSPを維持。
+Evidence endpointはGitHub OIDC限定read-only。
+JWKS/issuer hostは固定し、JWTのjku等を信頼しない。
+集計APIは任意SQL、event filter、raw ID exportを提供しない。
 
-## 11. AI公共営業コンシェルジュ（P1）
-Cloudflare Workers AI binding `AI` を使用。Free planで利用可能なモデルのみ。入力は当該案件の正規化情報、原典由来テキスト、企業プロフィール、ユーザー質問のみ。リードメール等は送らない。
+## 14. Error/縮退
+- Evidence OIDC invalid: 401/403、DB queryしない
+- JWKS unavailable: 503
+- Evidence export workflow失敗: artifactなし、Production public appへ影響なし
+- CR-004 UI JS error:既存APIは維持し回帰testで検出
+- watch update hash欠損: update=false、安全側
 
-AI回答には必ず参考情報ラベルを付け、正式参加可否/法的適格性/期限/金額をAI単独で確定しない。Free allocation超過時は「本日のAI無料枠上限」と表示して停止し、有料化しない。
+## 15. 費用
+Cloudflare Pages/Functions/D1 + GitHub Actions Free枠内。固定費0円。
+長期secret不要。
 
-## 12. イベント/Evidence
-既存イベントにProduct Usageイベントを追加。`session_id`と、利用可能な場合はサーバー側で算出した`client_key`を保存。PIIはmetadataへ入れない。
-
-Product KPIはD1集計SQLで算出し、初期は管理画面を作らない。
-
-## 13. エラー処理
-- 官公需API 4xx/5xx/timeout/XML error: キャッシュ結果+警告、または再試行案内
-- D1 limit: 503 + 「一時的に利用上限」表示。自動課金しない
-- AI Free limit: AI相談のみ停止。他機能継続
-- profile/watch validation: 400
-- token missing/invalid: 401相当ではなく新規匿名token再生成を案内。データ漏洩を避ける
-
-## 14. 保存・バックアップ
-D1 Time Travel（Free 7日）を利用。既存leads/eventsを保持。schema migrationは破壊的DROPを避け、CREATE/ALTERの後方互換を原則とする。需要検証Evidenceは定期CSV export可能なSQLを用意する。
-
-## 15. 実行環境・費用
-- Cloudflare Pages/Functions/D1/Workers/Cron/Workers AI Free枠
-- 月額固定費0円
-- Free枠超過時は機能停止/縮退し、自動的にPaidへ移行しない
-
-## 16. バックアップ/縮退運転
-- 官公需API停止: キャッシュ表示
-- AI停止: ルール判定/NEXT ACTIONのみで継続
-- Cron停止: ユーザー検索時のオンデマンド更新で継続
-- D1停止/Free上限: 静的LPは継続表示、動的操作は明示的エラー
+## 16. リリース方式
+1. baseline branch固定済み
+2. `cr-004-ui-ux-v0.1`で設計/実装
+3. CI
+4. P0 Gate
+5. main merge
+6. Cloudflare auto deploy
+7. schema bootstrap cr004
+8. Production smoke/E2E
+9. baseline vs cr004 Evidence確認
+10. Human Visual UAT
